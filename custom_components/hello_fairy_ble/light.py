@@ -1,4 +1,8 @@
-"""Hello Fairy Light platform."""
+"""Hello Fairy Light platform.
+
+Updated with aurora@aurora-smart-home (ha-integration-dev skill)
+https://github.com/tonylofgren/aurora-smart-home
+"""
 
 from __future__ import annotations
 
@@ -20,6 +24,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, EFFECT_PRESETS
 from .coordinator import HelloFairyCoordinator
+from .library import async_stop_playlist
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,9 +33,7 @@ def brightness_scale(
     brightness_pct: int, from_min: int, from_max: int, to_min: int, to_max: int
 ) -> int:
     """Scale brightness between different ranges."""
-    return int(
-        to_min + (brightness_pct - from_min) * (to_max - to_min) / (from_max - from_min)
-    )
+    return int(to_min + (brightness_pct - from_min) * (to_max - to_min) / (from_max - from_min))
 
 
 async def async_setup_entry(
@@ -39,10 +42,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ):
     """Set up Hello Fairy Light."""
-    # This gets the data update coordinator from hass.data as specified in your __init__.py
-    coordinator: HelloFairyCoordinator = hass.data[DOMAIN][
-        config_entry.entry_id
-    ].coordinator
+    coordinator: HelloFairyCoordinator = config_entry.runtime_data.coordinator
 
     async_add_entities([HelloFairyLight(coordinator)], True)
 
@@ -111,6 +111,7 @@ class HelloFairyLight(CoordinatorEntity[HelloFairyCoordinator], LightEntity):
 
     async def async_turn_on(self, **kwargs):
         """Turn device on."""
+        await async_stop_playlist(self.hass)
         # Always turn on first
         await self.coordinator.set_power(True)
 
@@ -136,5 +137,6 @@ class HelloFairyLight(CoordinatorEntity[HelloFairyCoordinator], LightEntity):
 
     async def async_turn_off(self, **kwargs):
         """Turn device off."""
+        await async_stop_playlist(self.hass)
         await self.coordinator.set_power(False)
         await self.coordinator.async_request_refresh()
