@@ -72,6 +72,9 @@ def decode_status(data: bytes, *, scene_divisor: int = 1) -> dict | None:
         "raw": data.hex(),
     }
     if mode == 1:
+        # Notification bytes 8-9: hue (0-359).
+        # Bytes 10-11: saturation; bytes 12-13: brightness (0-1000).
+        # Scale saturation/brightness to percent when presenting device state.
         h, s, v = (int.from_bytes(p[i : i + 2], "big") for i in (5, 7, 9))
         report.update(hue=h, saturation_raw=s, brightness_raw=v)
         if 0 <= v <= 1000:

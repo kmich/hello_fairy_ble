@@ -1,8 +1,4 @@
-"""Number platform for Hello Fairy BLE integration.
-
-Updated with aurora@aurora-smart-home (ha-integration-dev skill)
-https://github.com/tonylofgren/aurora-smart-home
-"""
+"""Number platform for Hello Fairy BLE integration."""
 
 from __future__ import annotations
 

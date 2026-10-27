@@ -2,6 +2,14 @@
 
 > Generated with [aurora@aurora-smart-home (ha-integration-dev skill)](https://github.com/tonylofgren/aurora-smart-home)
 
+## 2.0.0
+
+- Bump the integration, Studio header and browser module cache versions to 2.0.0.
+- Restore original string-light documentation, protocol details, troubleshooting, contribution history and License wording; document Studio in an additive section.
+- Restore still-applicable API/coordinator comments and remove generated-attribution headers from the existing API, coordinator, light and number modules.
+- Validate and normalize DIY service payloads and resolve all target coordinators before stopping a running playlist. Invalid inputs and missing targets now leave playback running without writes; valid requests still stop it before taking over.
+- Add active-playlist regression coverage for invalid pixel/frame/animation/playback/virtual-frame requests, missing targets and valid manual takeover.
+
 ## 1.1.0rc5
 
 - Add integrated experimental native controls with one-curtain explicit capability inspection and an exact model/firmware gate.

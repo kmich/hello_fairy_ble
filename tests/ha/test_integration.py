@@ -3,6 +3,7 @@ Generated with aurora@aurora-smart-home (ha-integration-dev skill)
 https://github.com/tonylofgren/aurora-smart-home
 """
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -168,3 +169,131 @@ async def test_real_playback_schema_and_handler(hass, kind, movement):
             },
             blocking=True,
         )
+
+
+@pytest.mark.parametrize(
+    "service,payload",
+    [
+        ("set_frame", {"address": ADDRESS, "pixels": [0] * 399}),
+        ("set_frame", {"address": ADDRESS, "pixels": [181] * 400}),
+        ("set_pixel", {"address": ADDRESS, "x": 0, "y": 0}),
+        ("set_pixel", {"address": ADDRESS, "x": 0, "y": 0, "rgb": [255, 0, 0], "color_byte": 0}),
+        ("set_pixel", {"address": ADDRESS, "x": 0, "y": 0, "color_byte": 181}),
+        (
+            "set_two_picture_animation",
+            {"address": ADDRESS, "experimental": True, "frames": [[0] * 400, [0] * 399]},
+        ),
+        (
+            "set_diy_playback",
+            {
+                "address": ADDRESS,
+                "kind": "animation",
+                "movement": "left",
+                "speed": 50,
+                "brightness": 100,
+            },
+        ),
+        ("set_virtual_frame", {"addresses": [ADDRESS], "pixels": [0] * 399}),
+        ("set_virtual_frame", {"addresses": [ADDRESS, ADDRESS], "pixels": [0] * 800}),
+        ("set_virtual_frame", {"addresses": [ADDRESS, "AA:BB:CC:DD:EE:02"], "pixels": [0] * 800}),
+        *[
+            (service, {"address": "AA:BB:CC:DD:EE:02", **payload})
+            for service, payload in [
+                ("enter_draw_mode", {}),
+                ("clear_matrix", {}),
+                ("test_pattern", {}),
+                ("set_frame", {"pixels": [0] * 400}),
+                ("set_pixel", {"x": 0, "y": 0, "color_byte": 0}),
+                (
+                    "set_two_picture_animation",
+                    {"experimental": True, "frames": [[0] * 400, [0] * 400]},
+                ),
+                (
+                    "set_diy_playback",
+                    {"kind": "picture", "movement": "still", "speed": 50, "brightness": 100},
+                ),
+            ]
+        ],
+    ],
+)
+async def test_invalid_service_preserves_running_playlist(hass, hass_storage, service, payload):
+    from custom_components.hello_fairy_ble.library import async_setup_library
+
+    from .test_library import curtain, saved
+
+    await setup_services(hass)
+    library = await async_setup_library(hass)
+    target = curtain(hass)
+    for name in ("set_pixel", "clear_pixels", "enter_draw_mode"):
+        setattr(target, name, AsyncMock())
+    await saved(library)
+    entered = asyncio.Event()
+    original_hold = library._hold
+
+    async def hold(seconds):
+        entered.set()
+        await original_hold(86400)
+
+    with patch.object(library, "_hold", hold):
+        await library.command("start", {"addresses": [ADDRESS]})
+        await asyncio.wait_for(entered.wait(), 1)
+        task = library._task
+        writes = [
+            getattr(target, name)
+            for name in (
+                "set_pixel",
+                "clear_pixels",
+                "enter_draw_mode",
+                "set_frame",
+                "set_two_picture_animation",
+                "set_diy_playback",
+            )
+        ]
+        for write in writes:
+            write.reset_mock()
+        try:
+            with pytest.raises(ServiceValidationError):
+                await hass.services.async_call(DOMAIN, service, payload, blocking=True)
+            assert library.active
+            assert library._task is task
+            assert library.status["state"] == "holding"
+            assert not library._stop.is_set()
+            for write in writes:
+                write.assert_not_awaited()
+        finally:
+            await library.stop()
+
+
+async def test_valid_service_stops_playlist_before_manual_write(hass, hass_storage):
+    from custom_components.hello_fairy_ble.library import async_setup_library
+
+    from .test_library import curtain, saved
+
+    await setup_services(hass)
+    library = await async_setup_library(hass)
+    target = curtain(hass)
+    await saved(library)
+    entered = asyncio.Event()
+    original_hold = library._hold
+
+    async def hold(seconds):
+        entered.set()
+        await original_hold(86400)
+
+    async def manual_write(pixels):
+        assert not library.active
+        assert pixels == [255] * 400
+
+    with patch.object(library, "_hold", hold):
+        await library.command("start", {"addresses": [ADDRESS]})
+        await asyncio.wait_for(entered.wait(), 1)
+        target.set_frame.reset_mock()
+        target.set_frame.side_effect = manual_write
+        try:
+            await hass.services.async_call(
+                DOMAIN, "set_frame", {"address": ADDRESS, "pixels": [255] * 400}, blocking=True
+            )
+            target.set_frame.assert_awaited_once()
+            assert not library.active
+        finally:
+            await library.stop()

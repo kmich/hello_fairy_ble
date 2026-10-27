@@ -2,7 +2,7 @@
 
 > Generated with [aurora@aurora-smart-home (ha-integration-dev skill)](https://github.com/tonylofgren/aurora-smart-home)
 
-Version **1.1.0rc5** combines the integration and all Studio tools. Open **Curtain Studio** in HA's sidebar as an administrator. Choose your curtains under **Your Hello Fairy curtains**, ordered left to right.
+Version **2.0.0** combines the integration and all Studio tools. Open **Curtain Studio** in HA's sidebar as an administrator. Choose your curtains under **Your Hello Fairy curtains**, ordered left to right.
 
 ## Text, palettes and artwork areas
 

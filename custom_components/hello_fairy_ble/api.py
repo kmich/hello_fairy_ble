@@ -1,9 +1,15 @@
 """Hello Fairy BLE API for controlling fairy lights via Bluetooth Low Energy.
 
-Guarded DIY transfers, connection recovery and Curtain Studio status.
-Standard power, color and preset command formats are retained.
-Generated with aurora@aurora-smart-home (ha-integration-dev skill)
-https://github.com/tonylofgren/aurora-smart-home
+This module provides the HelloFairyAPI class which implements the BLE protocol
+for communicating with Hello Fairy smart lights, including:
+- Power control (on/off)
+- Color setting (RGB/HSV)
+- Brightness control
+- Preset effects
+- Status monitoring via notifications
+
+Also supports guarded curtain DIY transfers, connection recovery, native
+curtain controls and timestamped Curtain Studio status.
 """
 
 from __future__ import annotations
@@ -49,7 +55,7 @@ from .pixel_protocol import (
 
 _LOGGER = logging.getLogger(__name__)
 
-PATCH_VERSION = "1.1.0rc5-experimental"
+PATCH_VERSION = "2.0.0"
 PIXEL_WRITE_DELAY = 0.30  # Capture: successive DA writes 298..309 ms apart.
 DRAW_MODE_SETTLE_DELAY = 0.25  # Capture: D0(00) to first DA = 250.990 ms.
 REQUIRED_DA_BYTES = 242  # AA DA EE 01 + 79 indexed triplets + checksum
@@ -57,9 +63,15 @@ REQUIRED_ATT_MTU = REQUIRED_DA_BYTES + 3
 
 
 class HelloFairyAPI(NativeControls):
-    """Hello Fairy BLE API implementation."""
+    """Hello Fairy BLE API implementation based on protocol from esphome fairy.yaml."""
 
     def __init__(self, ble_device: BLEDevice | None, update_callback: Callable[[], None]) -> None:
+        """Initialize Hello Fairy API.
+
+        Args:
+            ble_device: The BLE device to connect to, if already discovered
+            update_callback: Callback function for device state updates
+        """
         self._ble_device = ble_device
         self._client: BleakClient | None = None
         self._diy_transfer_client: BleakClient | None = None
@@ -94,11 +106,11 @@ class HelloFairyAPI(NativeControls):
 
         # Device state
         self.state: bool | None = None
-        self.brightness: int | None = None
-        self.color: tuple[int, int, int] | None = None
-        self.hsv: tuple[int, int, int] | None = None
+        self.brightness: int | None = None  # 0-100
+        self.color: tuple[int, int, int] | None = None  # RGB (0-255)
+        self.hsv: tuple[int, int, int] | None = None  # H(0-359), S(0-100), V(0-100)
         self.current_preset: int | None = None
-        self.mode: int | None = None
+        self.mode: int | None = None  # 1=color, 2=preset, 3=music
         self.available_effects = list(EFFECT_PRESETS.keys())
 
     @property
@@ -107,12 +119,15 @@ class HelloFairyAPI(NativeControls):
 
     @property
     def is_discovered(self) -> bool:
+        """Return True if the BLE device has been seen."""
         return self._ble_device is not None
 
     def set_ble_device(self, ble_device: BLEDevice) -> None:
+        """Update the BLE device once it has been (re)discovered."""
         self._ble_device = ble_device
 
     async def _ensure_connected(self) -> None:
+        """Ensure we have a connected BLE client."""
         if self._ble_device is None:
             raise ConnectionError("Hello Fairy device has not been discovered yet")
         if self._client is None or not self._client.is_connected:
@@ -209,6 +224,7 @@ class HelloFairyAPI(NativeControls):
         self._info_client = None
         stage = "BLE connect"
         try:
+            # Use bleak_retry_connector for robust connection handling
             self._client = await bleak_retry_connector.establish_connection(
                 BleakClient,
                 self._ble_device,
@@ -216,6 +232,7 @@ class HelloFairyAPI(NativeControls):
                 use_services_cache=use_services_cache,
                 max_attempts=1,
             )
+            # Start notifications for status updates
             stage = "notification subscription"
             subscribed_client = self._client
 
@@ -268,6 +285,7 @@ class HelloFairyAPI(NativeControls):
 
     @staticmethod
     def _calculate_checksum(data: Sequence[int]) -> int:
+        """Calculate simple sum checksum for Hello Fairy protocol."""
         return sum(data) % 256
 
     async def _write_packet_locked(self, packet: bytes, *, expect_ack: bool = False) -> None:
@@ -289,6 +307,7 @@ class HelloFairyAPI(NativeControls):
             _LOGGER.debug("Sending packet: %s", packet.hex(" "))
             await self._client.write_gatt_char(COMMAND_CHARACTERISTIC_UUID, packet, response=False)
             if expect_ack:
+                # Wait for ACK response
                 try:
                     await asyncio.wait_for(self._ack_event.wait(), timeout=5.0)
                 except TimeoutError as err:
@@ -301,11 +320,13 @@ class HelloFairyAPI(NativeControls):
 
     async def _send_command(self, command: list[int]) -> None:
         """Send an existing AA-prefixed command and wait for its ACK."""
+        # Calculate and append checksum
         packet = bytes([*command, self._calculate_checksum(command)])
         async with self._command_lock:
             await self._write_packet_locked(packet, expect_ack=True)
 
     async def _handle_notification(self, characteristic: BleakGATTCharacteristic, data: bytearray):
+        """Handle notifications from Hello Fairy device."""
         _LOGGER.debug("Received notification: %s", bytes(data).hex(" "))
 
         if len(data) == 4 and (
@@ -357,7 +378,8 @@ class HelloFairyAPI(NativeControls):
         self.mode = report["mode"]
         if "brightness_percent" in report:
             self.brightness = round(report["brightness_percent"])
-        if self.mode == MODE_COLOR and "hue" in report:
+        # Parse mode and color/preset data
+        if self.mode == MODE_COLOR and "hue" in report:  # HSV color mode
             h, saturation, value = (
                 report["hue"],
                 report["saturation_raw"] / 10,
@@ -368,22 +390,25 @@ class HelloFairyAPI(NativeControls):
                 round(c * 255) for c in colorsys.hsv_to_rgb(h / 360, saturation / 100, value / 100)
             )
             self.current_preset = None
-        elif self.mode == MODE_PRESET:
+        elif self.mode == MODE_PRESET:  # Preset mode
             self.current_preset = report.get("scene")
             self.color = None
             self.hsv = None
         self._update_callback()
 
     async def set_power(self, state: bool):
+        """Turn Hello Fairy lights on/off."""
         if self.state == state:
             return
 
         command = [CMD_PREFIX, CMD_POWER, 0x01, 0x01 if state else 0x00]
         await self._send_command(command)
 
+        # Update state immediately after successful ACK
         self.state = state
         self._in_draw_mode = False
         if not state:
+            # If turning off, clear color/brightness state
             self.brightness = None
             self.color = None
             self.hsv = None
@@ -391,10 +416,18 @@ class HelloFairyAPI(NativeControls):
             self.mode = None
 
     async def set_color_hsv(self, h: int, s: int, v: int):
+        """Set color using HSV values.
+
+        Args:
+            h: 0-359 degrees
+            s: 0-100 percent
+            v: 0-100 percent
+        """
         if not self.state:
             await self.set_power(True)
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.1)  # Wait for power on
 
+        # Ensure we're in the right ranges
         h = max(0, min(359, h))
         s = max(0, min(100, s))
         v = max(0, min(100, v))
@@ -405,41 +438,49 @@ class HelloFairyAPI(NativeControls):
             0x07,
             MODE_COLOR,
             h >> 8,
-            h & 0xFF,
+            h & 0xFF,  # H (2 bytes)
             (s * 10) >> 8,
-            (s * 10) & 0xFF,
+            (s * 10) & 0xFF,  # S (2 bytes, 0-1000)
             (v * 10) >> 8,
-            (v * 10) & 0xFF,
+            (v * 10) & 0xFF,  # V (2 bytes, 0-1000)
         ]
         await self._send_command(command)
 
+        # Update state immediately after successful ACK
         self.hsv = (h, s, v)
         self.brightness = v
         self.mode = MODE_COLOR
         self._in_draw_mode = False
         self.current_preset = None
+        # Convert HSV to RGB for Home Assistant
         r, g, b = colorsys.hsv_to_rgb(h / 360, s / 100, v / 100)
         self.color = (int(r * 255), int(g * 255), int(b * 255))
 
     async def set_color_rgb(self, r: int, g: int, b: int):
+        """Set color using RGB values (0-255)."""
+        # Convert RGB to HSV
         h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
         h_deg = int(h * 360)
         s_pct = int(s * 100)
-        v_pct = int(v * 100) if v > 0 else (self.brightness or 50)
+        v_pct = int(v * 100) if v > 0 else (self.brightness or 50)  # Maintain brightness
         await self.set_color_hsv(h_deg, s_pct, v_pct)
 
     async def set_brightness(self, brightness: int):
+        """Set brightness (0-100)."""
         if not self.state:
             return
 
         brightness = max(0, min(100, brightness))
         if self.hsv:
+            # Update current color with new brightness
             h, s, _ = self.hsv
             await self.set_color_hsv(h, s, brightness)
         else:
+            # If no color set, use white
             await self.set_color_hsv(0, 0, brightness)
 
     async def set_preset(self, preset: int):
+        """Set preset effect (1-58)."""
         if not self.state:
             await self.set_power(True)
             await asyncio.sleep(0.1)
@@ -458,14 +499,17 @@ class HelloFairyAPI(NativeControls):
         ]
         await self._send_command(command)
 
+        # Update state immediately after successful ACK
         self.current_preset = preset
         self.brightness = brightness
         self.mode = MODE_PRESET
         self._in_draw_mode = False
+        # Clear color state when in preset mode
         self.color = None
         self.hsv = None
 
     async def set_effect(self, effect_name: str):
+        """Set effect by name."""
         if effect_name in EFFECT_PRESETS:
             await self.set_preset(EFFECT_PRESETS[effect_name])
         else:
@@ -857,8 +901,10 @@ class HelloFairyAPI(NativeControls):
             }
 
     def get_available_effects(self) -> list:
+        """Get list of available effects."""
         return list(EFFECT_PRESETS.keys())
 
     async def disconnect(self) -> None:
+        """Disconnect from the device."""
         async with self._command_lock:
             await self._disconnect_transport_locked()

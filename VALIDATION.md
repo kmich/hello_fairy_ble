@@ -2,17 +2,17 @@
 
 > Generated with [aurora@aurora-smart-home (ha-integration-dev skill)](https://github.com/tonylofgren/aurora-smart-home)
 
-Candidate **1.1.0rc5**, based on upstream `cc166bc3d847cd8ec6f5f217717403bbf2b60c78` (1.0.0). One combined package and proposed PR.
+Candidate **2.0.0**, based on upstream `cc166bc3d847cd8ec6f5f217717403bbf2b60c78` (1.0.0). One combined package and proposed PR.
 
 ## Automated checks
 
-- 253 tests passed on real Home Assistant **2026.9.3**, Python 3.14, test plugin 0.13.366.
-- 253 tests passed on real Home Assistant **2026.10.1**, Python 3.14, test plugin 0.13.372.
+- 271 tests passed on real Home Assistant **2026.9.3**, Python 3.14, test plugin 0.13.366.
+- 271 tests passed on real Home Assistant **2026.10.1**, Python 3.14, test plugin 0.13.372.
 - 97 helper/browser workflow checks passed with Node and headless Edge using Playwright 1.62.1: 27 original Studio checks, 13 drawing-tool checks, 13 advanced library checks, five orientation checks, 10 movement-preview checks, 12 backup/layout/playback finishing checks, eight combined panel-layout/native/import-interlock checks, and nine native-control checks.
 - Official hassfest passed: one integration, zero invalid integrations, no warnings (image digest `sha256:4b1adfb1e0a37710af0390708eb8000230b80b2193ccffbeed0a901fa9765181`).
 - Ruff 0.15.14 lint/format and Prettier 3.6.2 format checks passed.
 
-HA tests use the actual framework, service validation, HTTP and authenticated WebSocket APIs, with simulated BLE clients. Browser checks use a local mock HA connection. These do not contact the user's Home Assistant or lights. Python tests ran in containers with networking disabled. Hosted CI has not yet run for this unpublished candidate; its browser job targets Chromium.
+HA tests use the actual framework, service validation, HTTP and authenticated WebSocket APIs, with simulated BLE clients. Browser checks use a local mock HA connection. These do not contact the user's Home Assistant or lights. Python tests ran in containers with networking disabled. GitHub CI passed both HA jobs and the Chromium browser job for the original PR revision eaa375e on 27 October 2026. The 2.0.0 review follow-up is checked locally and will receive its own hosted CI results after pushing.
 
 Tests cover model/MTU gating, capture-shaped framing, brightness compatibility, bounded connection retries and cleanup, no partial replay, ordered multi-device failure, entry cleanup, admin authorization, static-file serving, image editing, saved designs, animation controls and phone layout.
 
@@ -24,6 +24,8 @@ The rc3 additions cover multiple-playlist storage migration/selection, finite cy
 The rc4 additions cover strict complete-library validation and atomic restore/merge with remapped references, private backup boundaries, named layouts without writes, pause/resume remaining-time preservation and queued-navigation races, progress retention on failure, privacy-filtered diagnostics, local preview cleanup/nonmutation, and combined-panel import interlocks. Backend tests use real HA; all radio calls remain simulated.
 
 The rc5 additions cover strict device-info extension parsing, exact researched profile restrictions, connection-specific notifications/capability grants, advertised device-microphone music with ACK and complete status verification, read-only scene-speed discovery with known-preset gating and value readback, font discovery without upload, explicit clock echo verification, countdown status/cancel, both timer banks, UTC+08/local conversion, single-slot readback and preservation of unrelated schedules, and no command replay after errors. UI checks cover explicit single-target inspection, disabled unsupported controls, strict bounds, mobile layout, and interlocks with editor/status/import/layout actions. Unanswered capability queries remain unavailable. No BLE commands were sent to real lights during development.
+
+The 2.0.0 review follow-up adds 18 real-HA service regressions with a running Studio playlist: invalid frame length/colors, missing or conflicting pixel colors, malformed animation frames, invalid playback combinations, invalid/duplicate virtual targets, missing targets across every DIY service, and valid manual takeover. Invalid requests leave the same playlist task holding without new writes; a valid request stops playback before writing. The maintainer independently confirmed ordinary string-light controls and unsupported-curtain rejection on their hardware, and ran the earlier 253-test/97-check suites successfully.
 
 ## Physical evidence and release checks
 

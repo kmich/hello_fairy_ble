@@ -1,8 +1,4 @@
-"""Hello Fairy Light platform.
-
-Updated with aurora@aurora-smart-home (ha-integration-dev skill)
-https://github.com/tonylofgren/aurora-smart-home
-"""
+"""Hello Fairy Light platform."""
 
 from __future__ import annotations
 

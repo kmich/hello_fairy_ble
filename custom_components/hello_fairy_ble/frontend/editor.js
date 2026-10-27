@@ -1,9 +1,9 @@
-/** Hello Fairy Curtain Studio — bundled integration editor v1.1.0rc5.
+/** Hello Fairy Curtain Studio — bundled integration editor v2.0.0.
  * Generated with aurora@aurora-smart-home (ha-integration-dev skill)
  * https://github.com/tonylofgren/aurora-smart-home
  */
-import { PATTERNS, makePattern } from "./patterns.js?v=1.1.0rc5";
-import { transformCurtain } from "./orientation.js?v=1.1.0rc5";
+import { PATTERNS, makePattern } from "./patterns.js?v=2.0.0";
+import { transformCurtain } from "./orientation.js?v=2.0.0";
 import {
   PALETTES,
   checkedRegion,
@@ -12,9 +12,9 @@ import {
   recolor,
   renderText,
   transformRegion,
-} from "./design-tools.js?v=1.1.0rc5";
-import { estimateMovement } from "./movement-preview.js?v=1.1.0rc5";
-const VERSION = "1.1.0rc5";
+} from "./design-tools.js?v=2.0.0";
+import { estimateMovement } from "./movement-preview.js?v=2.0.0";
+const VERSION = "2.0.0";
 const OFF = 254;
 const DEFAULT_CURTAINS = [];
 const esc = (s) =>

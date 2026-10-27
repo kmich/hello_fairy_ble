@@ -1,4 +1,4 @@
-"""Hello Fairy BLE integration with built-in Curtain Studio v1.1.0rc5.
+"""Hello Fairy BLE integration with built-in Curtain Studio v2.0.0.
 
 Generated with aurora@aurora-smart-home (ha-integration-dev skill)
 https://github.com/tonylofgren/aurora-smart-home
@@ -202,19 +202,18 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
     @_service_handler
     async def handle_enter_draw_mode(call: ServiceCall) -> None:
-        await _stop_playlist(hass)
         coordinator = _coordinator_for_address(hass, call.data[ATTR_ADDRESS])
+        await _stop_playlist(hass)
         await coordinator.enter_draw_mode()
 
     @_service_handler
     async def handle_clear_matrix(call: ServiceCall) -> None:
-        await _stop_playlist(hass)
         coordinator = _coordinator_for_address(hass, call.data[ATTR_ADDRESS])
+        await _stop_playlist(hass)
         await coordinator.clear_pixels()
 
     @_service_handler
     async def handle_set_pixel(call: ServiceCall) -> None:
-        await _stop_playlist(hass)
         coordinator = _coordinator_for_address(hass, call.data[ATTR_ADDRESS])
         has_rgb = ATTR_RGB in call.data
         has_byte = ATTR_COLOR_BYTE in call.data
@@ -227,18 +226,18 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         else:
             color = validate_color_byte(call.data[ATTR_COLOR_BYTE])
 
+        await _stop_playlist(hass)
         await coordinator.set_pixel(call.data[ATTR_X], call.data[ATTR_Y], color)
 
     @_service_handler
     async def handle_set_frame(call: ServiceCall) -> None:
-        await _stop_playlist(hass)
         coordinator = _coordinator_for_address(hass, call.data[ATTR_ADDRESS])
         pixels = _normalize_frame(call.data[ATTR_PIXELS], PIXEL_COUNT)
+        await _stop_playlist(hass)
         await coordinator.set_frame(pixels)
 
     @_service_handler
     async def handle_two_picture_animation(call: ServiceCall) -> None:
-        await _stop_playlist(hass)
         if call.data.get("experimental") is not True:
             raise ValueError("experimental must be true for capture-derived playback")
         values = call.data["frames"]
@@ -246,21 +245,21 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             raise ValueError("exactly two pictures are required")
         frames = [_normalize_frame(frame, PIXEL_COUNT) for frame in values]
         coordinator = _coordinator_for_address(hass, call.data[ATTR_ADDRESS])
+        await _stop_playlist(hass)
         await coordinator.set_two_picture_animation(frames)
 
     @_service_handler
     async def handle_diy_playback(call: ServiceCall) -> None:
-        await _stop_playlist(hass)
         data = call.data
         build_playback_commands(data["kind"], data["movement"], data["speed"], data["brightness"])
         coordinator = _coordinator_for_address(hass, data[ATTR_ADDRESS])
+        await _stop_playlist(hass)
         await coordinator.set_diy_playback(
             data["kind"], data["movement"], data["speed"], data["brightness"]
         )
 
     @_service_handler
     async def handle_set_virtual_frame(call: ServiceCall) -> None:
-        await _stop_playlist(hass)
         addresses = [_normalize_address(a) for a in call.data[ATTR_ADDRESSES]]
         if len(set(addresses)) != len(addresses):
             raise ValueError("addresses must be unique and ordered left-to-right")
@@ -270,12 +269,12 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         pixels = _normalize_frame(call.data[ATTR_PIXELS], virtual_pixel_count)
         frames = split_virtual_frame(pixels, len(coordinators))
 
+        await _stop_playlist(hass)
         for coordinator, frame in zip(coordinators, frames, strict=True):
             await coordinator.set_frame(frame)
 
     @_service_handler
     async def handle_test_pattern(call: ServiceCall) -> None:
-        await _stop_playlist(hass)
         coordinator = _coordinator_for_address(hass, call.data[ATTR_ADDRESS])
         pixels = [PIXEL_OFF] * PIXEL_COUNT
 
@@ -292,6 +291,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             0, 0, 255
         )  # bottom-left blue
         pixels[-1] = 0xFF  # bottom-right white
+        await _stop_playlist(hass)
         await coordinator.set_frame(pixels)
 
     hass.services.async_register(
@@ -354,7 +354,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
             "Curtain Studio could not register; standard light controls remain available"
         )
     _LOGGER.info(
-        "Hello Fairy integration 1.1.0rc5 loaded; experimental two-picture playback; connection retries and static protocol preserved"
+        "Hello Fairy integration 2.0.0 loaded; experimental two-picture playback; connection retries and static protocol preserved"
     )
     return True
 
